@@ -137,7 +137,9 @@ class Metadata(Generic[T]):
         if unrecognized_fields is None:
             unrecognized_fields = {}
 
-        self.unrecognized_fields = unrecognized_fields
+        self.unrecognized_fields = type(unrecognized_fields)(
+            sorted(unrecognized_fields.items(), key=lambda x: x[0])
+        )
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Metadata):
@@ -756,9 +758,12 @@ class Root(Signed):
     def to_dict(self) -> Dict[str, Any]:
         """Return the dict representation of self."""
         root_dict = self._common_fields_to_dict()
-        keys = {keyid: key.to_dict() for (keyid, key) in self.keys.items()}
+        keys = {
+            keyid: key.to_dict()
+            for (keyid, key) in sorted(self.keys.items(), key=lambda x: x[0])
+        }
         roles = {}
-        for role_name, role in self.roles.items():
+        for role_name, role in sorted(self.roles.items(), key=lambda x: x[0]):
             roles[role_name] = role.to_dict()
         if self.consistent_snapshot is not None:
             root_dict["consistent_snapshot"] = self.consistent_snapshot
@@ -1124,7 +1129,9 @@ class Snapshot(Signed):
         """Return the dict representation of self."""
         snapshot_dict = self._common_fields_to_dict()
         meta_dict = {}
-        for meta_path, meta_info in self.meta.items():
+        for meta_path, meta_info in sorted(
+            self.meta.items(), key=lambda x: x[0]
+        ):
             meta_dict[meta_path] = meta_info.to_dict()
 
         snapshot_dict["meta"] = meta_dict
@@ -1542,7 +1549,7 @@ class Delegations:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dict representation of self."""
-        keys = {keyid: key.to_dict() for keyid, key in self.keys.items()}
+        keys = {keyid: key.to_dict() for keyid, key in sorted(self.keys.items(), key=lambda x: x[0])}
         res_dict: Dict[str, Any] = {
             "keys": keys,
             **self.unrecognized_fields,
@@ -1818,7 +1825,9 @@ class Targets(Signed):
         """Return the dict representation of self."""
         targets_dict = self._common_fields_to_dict()
         targets = {}
-        for target_path, target_file_obj in self.targets.items():
+        for target_path, target_file_obj in sorted(
+            self.targets.items(), key=lambda x: x[0]
+        ):
             targets[target_path] = target_file_obj.to_dict()
         targets_dict[_TARGETS] = targets
         if self.delegations is not None:
