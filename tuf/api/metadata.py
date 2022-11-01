@@ -43,12 +43,14 @@ from typing import (
     List,
     Mapping,
     Optional,
+    OrderedDict as OrderedDictT,
     Tuple,
     Type,
     TypeVar,
     Union,
     cast,
 )
+from collections import OrderedDict
 
 from securesystemslib import exceptions as sslib_exceptions
 from securesystemslib import hash as sslib_hash
@@ -293,16 +295,20 @@ class Metadata(Generic[T]):
 
         return serializer.serialize(self)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dict representation of self."""
 
         signatures = [sig.to_dict() for sig in self.signatures.values()]
 
-        return {
-            "signatures": signatures,
-            "signed": self.signed.to_dict(),
-            **self.unrecognized_fields,
-        }
+        return OrderedDict(
+            (
+                ("signatures", signatures),
+                ("signed", self.signed.to_dict()),
+            )
+            + tuple(
+                sorted(self.unrecognized_fields.items(), key=lambda x: x[0])
+            )
+        )
 
     def to_file(
         self,
@@ -582,19 +588,21 @@ class Signed(metaclass=abc.ABCMeta):
 
         return version, spec_version, expires
 
-    def _common_fields_to_dict(self) -> Dict[str, Any]:
+    def _common_fields_to_dict(self) -> OrderedDictT[str, Any]:
         """Returns dict representation of common fields of ``Signed`` instances.
 
         See ``{Root, Timestamp, Snapshot, Targets}.to_dict`` methods for usage.
 
         """
-        return {
-            "_type": self._type,
-            "version": self.version,
-            "spec_version": self.spec_version,
-            "expires": self.expires.isoformat() + "Z",
-            **self.unrecognized_fields,
-        }
+        return OrderedDict(
+            {
+                "_type": self._type,
+                "version": self.version,
+                "spec_version": self.spec_version,
+                "expires": self.expires.isoformat() + "Z",
+                **self.unrecognized_fields,
+            }
+        )
 
     def is_expired(self, reference_time: Optional[datetime] = None) -> bool:
         """Checks metadata expiration against a reference time.
@@ -682,14 +690,16 @@ class Key:
         # All fields left in the key_dict are unrecognized.
         return cls(keyid, keytype, scheme, keyval, key_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dictionary representation of self."""
-        return {
-            "keytype": self.keytype,
-            "scheme": self.scheme,
-            "keyval": self.keyval,
-            **self.unrecognized_fields,
-        }
+        return OrderedDict(
+            {
+                "keytype": self.keytype,
+                "scheme": self.scheme,
+                "keyval": self.keyval,
+                **self.unrecognized_fields,
+            }
+        )
 
     def to_securesystemslib_key(self) -> Dict[str, Any]:
         """Returns a ``Securesystemslib`` compatible representation of self."""
@@ -840,13 +850,17 @@ class Role:
         # All fields left in the role_dict are unrecognized.
         return cls(keyids, threshold, role_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dictionary representation of self."""
-        return {
-            "keyids": self.keyids,
-            "threshold": self.threshold,
-            **self.unrecognized_fields,
-        }
+        return OrderedDict(
+            (
+                ("keyids", self.keyids),
+                ("threshold", self.threshold),
+            )
+            + tuple(
+                sorted(self.unrecognized_fields.items(), key=lambda x: x[0])
+            )
+        )
 
 
 class Root(Signed):
@@ -927,12 +941,15 @@ class Root(Signed):
         # All fields left in the signed_dict are unrecognized.
         return cls(*common_args, keys, roles, consistent_snapshot, signed_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dict representation of self."""
         root_dict = self._common_fields_to_dict()
-        keys = {keyid: key.to_dict() for (keyid, key) in self.keys.items()}
-        roles = {}
-        for role_name, role in self.roles.items():
+        keys = OrderedDict(
+            (keyid, key.to_dict())
+            for (keyid, key) in sorted(self.keys.items(), key=lambda x: x[0])
+        )
+        roles = OrderedDict()
+        for role_name, role in sorted(self.roles.items(), key=lambda x: x[0]):
             roles[role_name] = role.to_dict()
         if self.consistent_snapshot is not None:
             root_dict["consistent_snapshot"] = self.consistent_snapshot
@@ -1274,11 +1291,13 @@ class Snapshot(Signed):
         # All fields left in the snapshot_dict are unrecognized.
         return cls(*common_args, meta, signed_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dict representation of self."""
         snapshot_dict = self._common_fields_to_dict()
-        meta_dict = {}
-        for meta_path, meta_info in self.meta.items():
+        meta_dict = OrderedDict()
+        for meta_path, meta_info in sorted(
+            self.meta.items(), key=lambda x: x[0]
+        ):
             meta_dict[meta_path] = meta_info.to_dict()
 
         snapshot_dict["meta"] = meta_dict
@@ -1695,13 +1714,18 @@ class Delegations:
         # All fields left in the delegations_dict are unrecognized.
         return cls(keys_res, roles_res, succinct_roles_info, delegations_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dict representation of self."""
-        keys = {keyid: key.to_dict() for keyid, key in self.keys.items()}
-        res_dict: Dict[str, Any] = {
-            "keys": keys,
-            **self.unrecognized_fields,
-        }
+        keys = OrderedDict(
+            (keyid, key.to_dict())
+            for keyid, key in sorted(self.keys.items(), key=lambda x: x[0])
+        )
+        res_dict: Dict[str, Any] = OrderedDict(
+            {
+                "keys": keys,
+                **self.unrecognized_fields,
+            }
+        )
         if self.roles is not None:
             roles = [role_obj.to_dict() for role_obj in self.roles.values()]
             res_dict["roles"] = roles
@@ -1967,11 +1991,13 @@ class Targets(Signed):
         # All fields left in the targets_dict are unrecognized.
         return cls(*common_args, res_targets, delegations, signed_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> OrderedDictT[str, Any]:
         """Returns the dict representation of self."""
         targets_dict = self._common_fields_to_dict()
-        targets = {}
-        for target_path, target_file_obj in self.targets.items():
+        targets = OrderedDict()
+        for target_path, target_file_obj in sorted(
+            self.targets.items(), key=lambda x: x[0]
+        ):
             targets[target_path] = target_file_obj.to_dict()
         targets_dict[_TARGETS] = targets
         if self.delegations is not None:
